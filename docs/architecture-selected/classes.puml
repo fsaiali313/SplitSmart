@@ -1,0 +1,190 @@
+@startuml
+title Selected SplitSmart - journal core and application ports (provisional)
+skinparam classAttributeIconSize 0
+hide empty members
+package "Domain and persisted records" {
+  class UserAccount {
+    id : UserId
+    login : String
+    passwordHash : String
+  }
+  class Session {
+    tokenHash : String
+    expiresAt : Instant
+  }
+  class Group {
+    id : GroupId
+    currency : Currency
+    minorUnitScale : int
+    ledgerVersion : long
+  }
+  class Membership {
+    role : Role
+    joinedAt : Instant
+    removedAt : Instant [0..1]
+  }
+  class Money <<value object>> {
+    amount : BigDecimal
+    currency : Currency
+  }
+  class Expense {
+    id : ExpenseId
+    amount : Money
+    expenseDate : LocalDate
+    description : String
+    status : ExpenseStatus
+    version : long
+  }
+  enum ExpenseStatus {
+    PENDING
+    APPROVED
+    REJECTED
+  }
+  class Allocation {
+    participantId : UserId
+    entryOrder : int
+    percentage : BigDecimal [0..1]
+    finalShare : Money
+  }
+  interface AllocationPolicy {
+    allocate(amount, orderedParticipants) : AllocationList
+  }
+  class EqualAllocation
+  class PercentageAllocation
+  EqualAllocation ..|> AllocationPolicy
+  PercentageAllocation ..|> AllocationPolicy
+  class ApprovalPolicySnapshot
+  class ApprovalStep {
+    level : int
+    designatedReviewerId : UserId
+  }
+  class ReviewDecision {
+    reviewerId : UserId
+    decision : Decision
+    decidedAt : Instant
+  }
+  class ReviewAssignmentAudit
+  class Receipt {
+    verifiedMediaType : String
+    imageBytes : byte[]
+  }
+  class JournalEntry <<immutable>> {
+    debtorId : UserId
+    creditorId : UserId
+    signedAmount : Money
+    kind : EntryKind
+    postedAt : Instant
+  }
+  class Payment {
+    fromUserId : UserId
+    toUserId : UserId
+    amount : Money
+    paymentDate : LocalDate
+    recordedAt : Instant
+  }
+  class HistoricalEntitlement {
+    userId : UserId
+    resourceId : Identifier
+    allowedViewScope : Scope
+  }
+  class Notification {
+    submissionEventId : EventId
+    recipientId : UserId
+    statusAtSubmission : ExpenseStatus
+    readAt : Instant [0..1]
+  }
+  class CommandReceipt {
+    actorId : UserId
+    commandType : String
+    idempotencyKey : String
+    payloadDigest : String
+    resultReference : Identifier
+  }
+  class PairwiseBalance <<derived>> {
+    debtorId : UserId
+    creditorId : UserId
+    amount : Money
+  }
+  UserAccount "1" -- "0..*" Session
+  Group "1" -- "1..*" Membership
+  UserAccount "1" -- "0..*" Membership
+  Group "1" -- "0..*" Expense
+  Expense "0..*" --> "1" UserAccount : payer
+  Expense "0..*" --> "1" UserAccount : submitter
+  Expense "1" *-- "1..*" Allocation
+  Allocation "0..*" --> "1" UserAccount : participant
+  Expense "1" *-- "1" ApprovalPolicySnapshot
+  ApprovalPolicySnapshot "1" *-- "1..*" ApprovalStep
+  ApprovalStep "1" -- "0..1" ReviewDecision
+  ApprovalStep "1" -- "0..*" ReviewAssignmentAudit
+  Expense "1" *-- "0..1" Receipt
+  Allocation "0..1" -- "0..1" JournalEntry : obligation source
+  Payment "0..1" -- "1" JournalEntry : settlement source
+  Group "1" -- "0..*" Payment
+  Group "1" -- "0..*" JournalEntry
+  Expense "1" -- "0..*" Notification
+  UserAccount "1" -- "0..*" Notification : recipient
+  UserAccount "1" -- "0..*" HistoricalEntitlement
+  HistoricalEntitlement ..> Expense : restricted own history
+  PairwiseBalance ..> JournalEntry : computed from
+}
+package "Application ports and services" {
+  interface AccountCommands
+  interface GroupCommands
+  interface ExpenseCommands
+  interface SettlementCommands
+  interface AuthorizedQueries
+  class IdentityService
+  class MembershipService
+  class ExpenseService
+  class ReviewService
+  class SettlementService
+  class QueryService
+  class AccessPolicy
+  class LedgerService
+  interface RepositoryPorts
+  interface TransactionCoordinator
+  IdentityService ..|> AccountCommands
+  MembershipService ..|> GroupCommands
+  ExpenseService ..|> ExpenseCommands
+  ReviewService ..|> ExpenseCommands
+  SettlementService ..|> SettlementCommands
+  QueryService ..|> AuthorizedQueries
+  ExpenseService --> AllocationPolicy
+  ExpenseService --> AccessPolicy
+  ReviewService --> AccessPolicy
+  SettlementService --> AccessPolicy
+  MembershipService --> AccessPolicy
+  QueryService --> AccessPolicy
+  ReviewService --> LedgerService
+  SettlementService --> LedgerService
+  LedgerService --> RepositoryPorts
+  ExpenseService --> RepositoryPorts
+  ReviewService --> RepositoryPorts
+  SettlementService --> RepositoryPorts
+  QueryService --> RepositoryPorts
+  ExpenseService --> TransactionCoordinator
+  ReviewService --> TransactionCoordinator
+  SettlementService --> TransactionCoordinator
+  ExpenseService ..> CommandReceipt
+}
+class SwingPresenter <<presentation>>
+SwingPresenter --> AccountCommands
+SwingPresenter --> GroupCommands
+SwingPresenter --> ExpenseCommands
+SwingPresenter --> SettlementCommands
+SwingPresenter --> AuthorizedQueries
+note bottom of JournalEntry
+  Exactly one source: allocation XOR payment.
+  Positive obligation, negative settlement; no self-debt.
+  Unique source key, BigDecimal only.
+end note
+note bottom of Notification
+  MVP inbox is inserted atomically with submission.
+  No dispatcher is needed for this local write.
+end note
+note top of ExpenseStatus
+  APPROVED and REJECTED are terminal.
+  No reversal or correction state toggle.
+end note
+@enduml

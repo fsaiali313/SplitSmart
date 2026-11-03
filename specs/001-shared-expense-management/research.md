@@ -1,53 +1,33 @@
-# Research: Shared Expense Management
+# Research and design decisions — selected architecture
 
-## Decision summary
+Status: provisional synthesis, 2026-11-03. This is repository document analysis, not empirical performance/security research or dependency verification. See [plan](plan.md), [review](../../docs/lab7-architecture-review.md), and [decision/gates](../../docs/lab7-architecture-decision.md).
 
-The implementation will target a Java 21 + Maven desktop application built with Swing for the bounded MVP described in the feature specification. The product scope preserves the customer requirement set from `UserRequirement.md`, while the Swing desktop subset is treated as an explicit evaluation scope rather than a replacement for the requested web, Android, or iOS delivery model.
+| Decision | Rationale | Alternatives and cost |
+|---|---|---|
+| B core with A phased desktop evaluation | Financial integrity/client reuse with a bounded teaching sequence | A alone leaves atomic/retry mechanisms undefined; full B deployment adds unnecessary initial machinery |
+| Java 21/Maven/Swing, one project with cohesive packages | Constitution and manageable build | Separate modules can follow demonstrated need; direct Swing business/storage logic violates separation |
+| Embedded relational transaction adapter; H2 candidate | Atomic expense/inbox, approval/journal, payment/journal | A's loose-file option needs custom atomic recovery; PostgreSQL candidate deferred until server strategy approved |
+| Immutable journal and synchronous balance reads | One financial authority, audit and recovery | Writable Balance creates a second authority; full event sourcing/read databases unnecessary |
+| Persistent command receipts and source keys | Safe double-click/timeout retries, even distinct approval command keys | Disabled buttons alone cannot prevent duplicate committed effects |
+| Group row lock before expense/financial writes | Current-debt validation and stable ordering | Pair locks add ordering complexity; no lock permits race; coarse contention must be measured |
+| One reviewer, terminal reviewed submissions | Proposed subset and no undefined reversal | Ordered levels retained for confirmed full group policy; approved-to-pending excluded |
+| Transactional local inbox, future external outbox | Local notification effects fit in one DB commit | Original B dispatcher unnecessary for local inserts; nontransactional send risks misses; no broker required |
+| Exact BigDecimal minor-unit quotient/remainder | Conserves total without recurring-decimal approximation | Float/double prohibited; independent HALF_UP shares may create unexplained cents |
+| Receipt BLOB | Atomic image association | Files/object storage need staging/cleanup; BLOB growth requires limits/tested backups |
+| Application authorization and historical entitlements | Every adapter enforces current/historical boundaries | UI-only checks bypassable; permanent former-member group visibility violates removal |
+| Business-date lists, posting-date balance periods | Late approval/backdated payment do not rewrite financial history | Filtered expense totals cannot be presented as current debt |
+| Future Java server plus web/Android/iOS clients | Preserves FR-012 | Immediate full delivery is a sequencing choice, not scope expansion; desktop-only product requires explicit customer authorization |
 
-## Research findings
+## Pending policy and technology decisions
 
-### 1) Delivery strategy and scope gate
+Proposed defaults: one group currency, active-member payer/participants, one designated reviewer, no self-review, immutable submitted financial fields, and historical access limited to own involvement. A sole-member group needs another eligible reviewer before submission. A manager may reassign only an outstanding review step with an audit record; completed decisions cannot change. These defaults need G2 review; they do not alter source acceptance criteria.
 
-- Decision: Keep the feature design focused on the Swing desktop MVP while recording the full web/mobile delivery requirement as a separate customer decision gate.
-- Rationale: The constitution explicitly states that Java 21, Maven, Swing, and PlantUML are implementation decisions, not customer requirements. The feature specification also calls out that web and mobile delivery are still required by the original customer request and must not be silently narrowed.
-- Alternatives considered:
-  - Full web + Android + iOS implementation from day one: rejected as a product-scope expansion beyond the current planning target and incompatible with the bounded description of the current feature branch.
-  - Desktop-only product without formal scope note: rejected because it would contradict the constitution and the source customer requirements.
+Confirm currency/scale and limits: proposed two-decimal money DECIMAL(19,2), percentage DECIMAL(9,6), no silent truncation/rounding. Confirm report timezone/additional parameters/export, credential/recovery/session configuration, image allowlist/size/pixel limits, historical redaction/rejoin, database versions and backup/restore. No products/libraries are claimed benchmarked or vetted.
 
-### 2) Approval model for the MVP
+Primary web/Android/iOS delivery strategy and desktop-subset approval remain G1 before implementation planning. Ordered multi-level approval remains available as a target extension according to confirmed group needs. Automatic local/server sync, bank processing and currency conversion are not promised.
 
-- Decision: Use a single-review approval flow in the MVP, with the ability to extend to multi-level approval later if the customer approves a broader approval policy.
-- Rationale: The spec’s assumptions explicitly allow one designated reviewer per expense and the proposed MVP can demonstrate the workflow without assuming full multi-level review complexity.
-- Alternatives considered:
-  - Full multi-level approval model immediately: rejected as unnecessary complexity for the initial validation prototype.
-  - No approval step: rejected because it violates the customer requirement and the feature specification’s approval workflow.
+## Security and persistence implications
 
-### 3) Currency and amount handling
+Use established adaptive salted password hashing with stored algorithm parameters, never plaintext credentials; bound sign-in retries and expire/revoke sessions. Session identity determines actor; caller fields cannot confer authority. Future server requires TLS, protected session transport and cookie CSRF defenses as applicable. Local OS access can bypass a local database; strong shared-user isolation needs a server boundary. Recheck authorization on queries, images, reports, retries and transaction-time reviews/payments.
 
-- Decision: Treat each group or expense context as using a single currency, with amounts represented as `BigDecimal` to minor units and rounding applied by the confirmed rule: largest fractional remainder, then participant entry order for ties.
-- Rationale: The feature specification mandates exact monetary arithmetic and explicit rounding behavior. The constitution requires `BigDecimal` and no `float`/`double` for money.
-- Alternatives considered:
-  - Floating-point arithmetic: rejected due to precision loss and auditability problems.
-  - Multi-currency conversion support in the MVP: rejected because the requirement is not defined and would broaden scope before customer confirmation.
-
-### 4) Reporting and filtering
-
-- Decision: Standardize on date-range filters plus group/account filters, expense/balance/payment category filters, and a clear empty-state result for no matches.
-- Rationale: The spec identifies date ranges as required and leaves additional report parameters open for future definition. The MVP should validate the core filtering behavior before expanding parameter richness.
-- Alternatives considered:
-  - Unlimited custom reporting parameters from the outset: rejected as plan creep.
-  - No filter guidance: rejected because the acceptance criteria require report matching to selected parameters.
-
-### 5) Persistence and service boundaries
-
-- Decision: Use a repository/service layer to isolate domain rules from Swing UI code, with persistence implementation delegated to a local repository abstraction that can be backed by a file-based or embedded database solution during implementation.
-- Rationale: The constitution requires GUI/business separation and the feature spec calls for persistent records for accounts, groups, expenses, balances, payments, and notifications.
-- Alternatives considered:
-  - Direct Swing model storage: rejected because it couples UI and business state.
-  - Full enterprise database architecture in the MVP: rejected as an unnecessary complexity increase for a local desktop version.
-
-## Consolidated outcomes
-
-- Decision: The feature will be planned as a Java 21, Maven, Swing desktop application with domain services, JUnit 5 tests, and `BigDecimal` arithmetic.
-- Rationale: This choice satisfies the constitution and the bounded MVP described in the feature specification while explicitly keeping the broader web/mobile delivery requirement as a future platform decision.
-- Alternatives considered: Full cross-platform implementation immediately, no approval gate, floating-point money handling, and direct UI persistence were all rejected as incompatible with the constitution or the defined scope.
+JDBC repository adapters enforce migrations, foreign keys, exact decimals, uniqueness and rollback. Index journal group/currency/pair/posting time; measure before caching. Test embedded/server parity rather than assuming identical SQL/locking. Backups must be database-consistent and restored with source/journal reconciliation. [Quickstart](quickstart.md) lists future evidence; [validation record](../../docs/lab7-architecture-validation.md) lists checks actually performed.

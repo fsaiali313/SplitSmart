@@ -1,0 +1,50 @@
+@startuml
+title Selected MVP - idempotent atomic settlement
+start
+:Authenticated user selects group, payee,\namount, currency and payment date;
+:Send payment command and idempotency key;
+:Resolve debtor from session; validate required fields,\npositive exact-scale amount and distinct parties;
+if (Valid?) then (yes)
+else (no)
+  :Return actionable error;
+  stop
+endif
+:Begin transaction; lock group ledger row;
+:Recheck current membership or own historical\nsettlement entitlement for this debtor and payee;
+if (Authorized?) then (yes)
+else (no)
+  :Roll back; deny without disclosing private due;
+  stop
+endif
+if (Command key already committed?) then (yes)
+  if (Digest matches?) then (yes)
+    :End transaction; return prior authorized result;
+  else (no)
+    :Roll back; return key conflict;
+  endif
+  stop
+endif
+:Read current committed positive pairwise netDue\nfor this group and currency under lock;
+if (Positive due and amount no greater than due?) then (yes)
+  :Save payment, negative journal settlement,\nhistorical entitlements and command receipt;
+  if (All writes commit together?) then (yes)
+    :Release lock; return recorded payment result;
+  else (no)
+    :Roll back all effects; return failure or retryable conflict;
+    stop
+  endif
+else (no)
+  :Roll back; reject and show current amount owed;
+  stop
+endif
+:Reauthorize balance query; read committed journal snapshot;
+:Show current group/currency pairwise debt;
+note right
+  Report expense lists use expenseDate;
+  payment lists use paymentDate.
+  Period balances use postedAt with labeled
+  opening, movement and closing amounts.
+  No bank transfer is executed.
+end note
+stop
+@enduml

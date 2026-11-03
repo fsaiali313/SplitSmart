@@ -1,0 +1,50 @@
+﻿[
+    {
+        "Path":  "UserRequirement.md",
+        "SHA256":  "7BF20A1BBA8A77DE50EE03F685D6E0FE933ED21C29E62D4BCB4161852CEF0E46"
+    },
+    {
+        "Path":  ".specify/memory/constitution.md",
+        "SHA256":  "1093D673B5EA71D56BF4BE539A89CB7BAD7CD6D22DAFF6BE9C1D779848F8AEDC"
+    },
+    {
+        "Path":  "specs/001-shared-expense-management/spec.md",
+        "SHA256":  "20BAFF8E298F0CC836E0379BB7252B933D7CD62F323C2FDAD8AA15F3EE7FA298"
+    },
+    {
+        "Path":  "specs/001-shared-expense-management/checklists/requirements.md",
+        "SHA256":  "86CA8F4BE7266172EDF74F86C083D46F822468DB320CD89ACC0719F3481DDD7B"
+    },
+    {
+        "Path":  "docs/architecture-b/architecture.md",
+        "SHA256":  "00DAF1D2775F5258BEE8105EDFC422FB7D5B6C91FF7E0BC1EC800CB9989B828C"
+    },
+    {
+        "Path":  "docs/architecture-b/classes.puml",
+        "SHA256":  "E791BB0DD8DB96D3D34FEB7272E7D62E61C9946B7A2490074BC4786F3B72AC58"
+    },
+    {
+        "Path":  "docs/architecture-b/components.puml",
+        "SHA256":  "BED2B0E2D7FED31B27FC51E28AAAAD1212D6F46CE0F0B31E2004B68E4FF16C39"
+    },
+    {
+        "Path":  "docs/architecture-b/data-and-finance.md",
+        "SHA256":  "4D2C66AAC9F457C797F7891C10750112976ABB2FF14AE4AC409EA19ED03D0CEA"
+    },
+    {
+        "Path":  "docs/architecture-b/expense-activity.puml",
+        "SHA256":  "D7A294E021859C988EBC01EC8FA3DC90C267B09D2708259D8754B96E693BE9A5"
+    },
+    {
+        "Path":  "docs/architecture-b/payment-activity.puml",
+        "SHA256":  "AB18E66CBF2947B99683DC92CDF2BCE67680EEDC42260B10FA76A0358C1E7274"
+    },
+    {
+        "Path":  "docs/architecture-b/quality-and-traceability.md",
+        "SHA256":  "4623E69AEF3767F5FDD6EF2306A9582337FD4A9FDF8639A9068C20CBDBDC3581"
+    },
+    {
+        "Path":  "docs/architecture-b/README.md",
+        "SHA256":  "5340C8EA37B073B8C1FC7BD5549088A49230B9C22DC274FB920BF8F54E13678E"
+    }
+]

@@ -1,0 +1,62 @@
+@startuml
+title Selected SplitSmart - bounded MVP and proposed full delivery
+skinparam componentStyle rectangle
+package "Bounded Swing desktop evaluation" {
+  [Swing Views / Presenters] as Swing
+  [Local Invocation Adapter] as Local
+  [Embedded JDBC Adapter] as EmbeddedAdapter
+  database "Embedded relational DB\nH2 candidate" as EmbeddedDB
+  Swing --> Local
+  EmbeddedAdapter --> EmbeddedDB
+}
+package "Shared Java 21 / Maven core" {
+  [Identity / Authorization] as Access
+  [Group / Expense / Review / Settlement Commands] as Commands
+  [Allocation Policies / Approval State Machine] as Domain
+  [Journal / Pairwise Ledger Service] as Ledger
+  [Authorized Query / Report Service] as Queries
+  [Repository / Transaction Ports] as Ports
+  Commands --> Access
+  Commands --> Domain
+  Commands --> Ledger
+  Commands --> Ports : atomic writes, including inbox
+  Ledger --> Ports
+  Queries --> Access
+  Queries --> Ports : committed journal snapshot
+}
+Local --> Commands
+Local --> Queries
+EmbeddedAdapter ..|> Ports
+package "Full platform proposal - approval required" {
+  [Primary Web Client] as Web
+  [Android App] as Android
+  [iOS App] as IOS
+  [Authenticated Java HTTP Adapter] as HTTP
+  [Server JDBC Adapter] as ServerAdapter
+  database "Server relational DB\nPostgreSQL candidate" as ServerDB
+  Web --> HTTP : TLS
+  Android --> HTTP : TLS
+  IOS --> HTTP : TLS
+  HTTP --> Commands
+  HTTP --> Queries
+  ServerAdapter ..|> Ports
+  ServerAdapter --> ServerDB
+}
+package "Optional external notification extension - deferred" {
+  [Outbox Dispatcher] as Dispatcher
+  [Selected Transport Adapter] as Transport
+  Dispatcher --> Ports : committed outbox, retries
+  Dispatcher --> Access : recipient eligibility
+  Dispatcher --> Transport : deduplicated external delivery
+}
+note bottom of Ports
+  MVP submission commits expense, shares, receipt,
+  policy, entitlements, command receipt and inbox.
+  Final approval/payment and journal effects are atomic.
+  External channels add outbox enqueue to submission.
+end note
+note bottom of ServerDB
+  Alternative deployment, not desktop synchronization.
+  Desktop alone does not satisfy FR-012.
+end note
+@enduml

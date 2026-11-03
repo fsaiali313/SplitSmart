@@ -1,0 +1,72 @@
+@startuml
+title Selected MVP - submission, inbox and final approval
+start
+:Enter date, description, amount, separate payer,\nordered participants, split and optional receipt;
+:Send session, payload and idempotency key;
+:Resolve actor and perform preliminary validation;
+if (Valid input and session?) then (yes)
+else (no)
+  :Return actionable field or session error;
+  stop
+endif
+:Begin transaction; lock group row;
+:Recheck membership, participants, payer and reviewer policy;
+if (Authorized valid configuration?) then (yes)
+else (no)
+  :Roll back; return policy or authorization error;
+  stop
+endif
+if (Command key already committed?) then (yes)
+  if (Payload digest matches?) then (yes)
+    :End transaction; return authorized prior result;
+  else (no)
+    :Roll back; return key conflict;
+  endif
+  stop
+endif
+:Calculate BigDecimal shares using largest remainders\nand participant entry order on ties;
+:Save PENDING expense, shares, receipt,\nreview snapshot and historical entitlements;
+:Insert durable inbox notices for other active members\nwith status PENDING at submission;
+:Save command receipt;
+if (All submission writes commit?) then (yes)
+  :Return saved pending result; no financial postings;
+else (no)
+  :Roll back everything; return failure or retryable conflict;
+  stop
+endif
+note right
+  Inbox reads are independent of review.
+  Optional external delivery later uses a committed outbox;
+  its worker never gates approval or financial visibility.
+end note
+:Designated reviewer sends approve/reject,\nexpected version and new command key;
+:Resolve actor; begin transaction; lock group then expense;
+:Recheck active reviewer authorization and configured policy;
+if (Authorized?) then (yes)
+else (no)
+  :Roll back; deny;
+  stop
+endif
+if (Review key already committed?) then (yes)
+  :Compare digest; return prior result or conflict;\nend transaction without new postings;
+  stop
+endif
+if (PENDING with expected version?) then (yes)
+else (no)
+  :Roll back; return stale or terminal-state result;
+  stop
+endif
+:Record one-reviewer decision;
+if (Approve?) then (yes)
+  :Set APPROVED and append positive obligation entries\nfor nonpayer participants with positive shares;
+else (reject)
+  :Set REJECTED; append no journal entries;
+endif
+:Save review command receipt;
+if (Decision, status and any postings commit together?) then (yes)
+  :Return terminal outcome and journal-derived balances;
+else (no)
+  :Roll back decision, status, entries and command receipt;
+endif
+stop
+@enduml
