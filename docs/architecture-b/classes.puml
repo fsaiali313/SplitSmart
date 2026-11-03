@@ -1,0 +1,172 @@
+@startuml
+title Architecture B - conceptual classes and application ports
+skinparam classAttributeIconSize 0
+hide empty members
+package "Domain" {
+  class UserAccount {
+    id : UserId
+    login : String
+    passwordHash : String
+  }
+  class Group {
+    id : GroupId
+    currency : Currency
+    ledgerVersion : long
+  }
+  class Membership {
+    role : Role
+    joinedAt : Instant
+    removedAt : Instant [0..1]
+  }
+  class Money <<value object>> {
+    amount : BigDecimal
+    currency : Currency
+  }
+  class Expense {
+    id : ExpenseId
+    amount : Money
+    expenseDate : LocalDate
+    description : String
+    status : ExpenseStatus
+    version : long
+  }
+  enum ExpenseStatus {
+    PENDING
+    APPROVED
+    REJECTED
+  }
+  class Allocation {
+    participantId : UserId
+    entryOrder : int
+    percentage : BigDecimal [0..1]
+    share : Money
+  }
+  interface AllocationPolicy {
+    allocate(amount, orderedParticipants) : AllocationList }
+  class EqualAllocation
+  class PercentageAllocation
+  EqualAllocation ..|> AllocationPolicy
+  PercentageAllocation ..|> AllocationPolicy
+  class ApprovalPolicySnapshot
+  class ApprovalStep {
+    level : int
+    reviewerId : UserId
+  }
+  class ReviewDecision {
+    decision : Decision
+    decidedAt : Instant
+  }
+  class Receipt {
+    mediaType : String
+    imageBytes : byte[]
+  }
+  class JournalEntry <<immutable>> {
+    debtorId : UserId
+    creditorId : UserId
+    signedAmount : Money
+    sourceId : Identifier
+    sourceLine : int
+    kind : EntryKind
+    postedAt : Instant
+  }
+  class Payment {
+    fromUserId : UserId
+    toUserId : UserId
+    amount : Money
+    paymentDate : LocalDate
+  }
+  class HistoricalEntitlement {
+    userId : UserId
+    resourceId : Identifier
+    viewScope : Scope
+  }
+  class OutboxEvent
+  class OutboxRecipient {
+    recipientId : UserId
+    deliveryState : DeliveryState
+  }
+  class Notification {
+    recipientId : UserId
+    readAt : Instant [0..1]
+  }
+  class CommandReceipt {
+    actorId : UserId
+    idempotencyKey : String
+    payloadDigest : String
+  }
+  class PairwiseBalance <<derived>> {
+    debtorId : UserId
+    creditorId : UserId
+    amount : Money
+  }
+  Group "1" -- "1..*" Membership
+  UserAccount "1" -- "0..*" Membership
+  Group "1" -- "0..*" Expense
+  Expense "0..*" --> "1" UserAccount : payer
+  Expense "0..*" --> "1" UserAccount : submitter
+  Expense "1" *-- "1..*" Allocation
+  Allocation "0..*" --> "1" UserAccount : participant
+  Expense "1" *-- "1" ApprovalPolicySnapshot
+  ApprovalPolicySnapshot "1" *-- "1..*" ApprovalStep
+  ApprovalStep "1" -- "0..1" ReviewDecision
+  Expense "1" *-- "0..1" Receipt
+  Expense "1" -- "0..*" JournalEntry : approved shares
+  Payment "1" -- "1" JournalEntry : settlement
+  Group "1" -- "0..*" Payment
+  Group "1" -- "0..*" JournalEntry
+  Expense "1" -- "1" OutboxEvent : submission
+  OutboxEvent "1" *-- "0..*" OutboxRecipient
+  OutboxRecipient "1" -- "0..1" Notification
+  HistoricalEntitlement ..> Expense : restricted historical view
+  PairwiseBalance ..> JournalEntry : derived from
+}
+package "Application and ports" {
+  interface ExpenseCommands {
+    submit(command, session)
+    review(command, session)
+  }
+  interface SettlementCommands {
+    recordPayment(command, session) }
+  interface AuthorizedQueries {
+    balances(filter, session)
+    report(filter, session)
+  }
+  class ExpenseService
+  class SettlementService
+  class QueryService
+  class AccessPolicy {
+    authorize(actor, action, resource) }
+  class LedgerService {
+    postObligations(expense)
+    postSettlement(payment)
+    netDue(group, from, to) : Money
+  }
+  interface RepositoryPorts
+  interface TransactionCoordinator
+  ExpenseService ..|> ExpenseCommands
+  SettlementService ..|> SettlementCommands
+  QueryService ..|> AuthorizedQueries
+  ExpenseService --> AllocationPolicy
+  ExpenseService --> Expense
+  ExpenseService --> LedgerService
+  SettlementService --> LedgerService
+  ExpenseService --> AccessPolicy
+  SettlementService --> AccessPolicy
+  QueryService --> AccessPolicy
+  ExpenseService --> RepositoryPorts
+  SettlementService --> RepositoryPorts
+  QueryService --> RepositoryPorts
+  LedgerService --> RepositoryPorts
+  ExpenseService --> TransactionCoordinator
+  SettlementService --> TransactionCoordinator
+}
+class SwingPresenter <<presentation>>
+SwingPresenter --> ExpenseCommands
+SwingPresenter --> SettlementCommands
+SwingPresenter --> AuthorizedQueries
+note bottom of JournalEntry
+  BigDecimal only. No self-debt.
+  Obligations positive, settlements negative.
+  Unique kind/source/sourceLine prevents duplicate posting.
+end note
+@enduml

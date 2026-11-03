@@ -1,0 +1,42 @@
+@startuml
+title Record a settlement safely and query reports
+start
+:User selects group, payee, amount, payment date;
+:Send payment command with session and idempotency key;
+:Resolve authenticated debtor; authorize current membership\nor restricted own historical settlement;
+if (Authorized and positive exact-scale amount?) then (yes)
+  :Begin transaction; lock group ledger row;
+  if (Matching command already committed?) then (yes)
+    :Return prior recorded result;
+  else (no)
+    :Read current committed pairwise net debt\nfor this group and currency;
+    if (Amount exceeds due or no positive debt?) then (yes)
+      :Roll back; show current amount owed;
+      stop
+    else (no)
+      :Save payment and negative journal settlement entry;
+      :Save idempotent result;
+      if (All writes succeed?) then (yes)
+        :Commit atomically; release group lock;
+      else (no)
+        :Roll back; show unsuccessful action;
+        stop
+      endif
+    endif
+  endif
+else (no)
+  :Return authorization or field error;
+  stop
+endif
+:Show new journal-derived pairwise balance;
+:User requests expense / balance / payment report;
+:Validate inclusive date range and supported parameters;
+:Authorize records; read consistent database snapshot;
+:Filter expenses by expense date and payments by payment date;\nlabel current balance or opening/movement/closing by posting date;
+if (Any matching records?) then (yes)
+  :Show separate summaries with authorized details;
+else (no)
+  :Show explicit no-matching-results state;
+endif
+stop
+@enduml

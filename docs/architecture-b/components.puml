@@ -1,0 +1,52 @@
+@startuml
+title Architecture B - shared core and deployment alternatives
+skinparam componentStyle rectangle
+package "Bounded desktop MVP (one machine)" {
+  [Swing Views / Presenters] as Swing
+  [Local Invocation Adapter] as Local
+  database "Embedded relational DB\n(candidate H2)" as Embedded
+  Swing --> Local
+}
+package "Full customer platform (proposed, approval required)" {
+  [Primary Web Client] as Web
+  [Android App] as Android
+  [iOS App] as IOS
+  [Authenticated HTTP Adapter\nJava 21 server] as HTTP
+  database "Server relational DB\n(candidate PostgreSQL)" as ServerDB
+  Web --> HTTP : TLS
+  Android --> HTTP : TLS
+  IOS --> HTTP : TLS
+}
+package "Reusable Java 21 / Maven modular monolith" {
+  [Identity / Access] as Access
+  [Application Commands\nMembership, Expense, Review, Settlement] as Commands
+  [Authorized Query / Report Service] as Queries
+  [Domain Objects\nAllocation Policies / Approval State Machine] as Domain
+  [Ledger Service] as Ledger
+  [Repository / Transaction Ports] as Ports
+  [Outbox Dispatcher / Inbox] as Notify
+  Commands --> Access
+  Queries --> Access
+  Commands --> Domain
+  Commands --> Ledger
+  Commands --> Ports
+  Queries --> Ports
+  Ledger --> Ports
+  Notify --> Ports
+}
+Local --> Commands
+Local --> Queries
+HTTP --> Commands
+HTTP --> Queries
+[Embedded JDBC Adapter] as EAdapter
+[Server JDBC Adapter] as SAdapter
+EAdapter ..|> Ports
+SAdapter ..|> Ports
+EAdapter --> Embedded
+SAdapter --> ServerDB
+note bottom of Ports
+  Same ports; different deployments.
+  No desktop/server synchronization implied.
+  Financial writes and outbox enqueue are atomic.
+end note
+@enduml

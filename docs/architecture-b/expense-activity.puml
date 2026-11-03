@@ -1,0 +1,59 @@
+@startuml
+title Submit, notify, review, and post an expense
+start
+partition "Submitter / presentation adapter" {
+  :Enter amount, date, description, payer,\nordered participants, split, optional receipt;
+  :Send submission with session and idempotency key;
+}
+partition "Expense application service" {
+  :Resolve session and authorize active membership;
+  :Validate fields, currency, payer, participants,\npercentages, receipt, and reviewer configuration;
+  if (Valid and authorized?) then (yes)
+    :Begin submission transaction;
+    if (Committed matching command already exists?) then (yes)
+      :Return prior result without new effects;
+      stop
+    else (no)
+      :Calculate reconciled BigDecimal shares;
+      :Save PENDING expense, shares, receipt,\nreview snapshot, historical entitlements;
+      :Save outbox recipients for other active members\nand idempotent command result;
+      :Commit, or roll back all on failure;
+    endif
+  else (no)
+    :Return actionable error with no saved submission;
+    stop
+  endif
+}
+fork
+  partition "Notification dispatcher" {
+    :Read committed outbox recipients;
+    :Recheck recipient eligibility;
+    :Create inbox notice identifying expense\nand its pending status at submission;
+    :Retry failed delivery; deduplicate by event/recipient;
+  }
+fork again
+  partition "Review service" {
+    :Await designated review decision;
+    :Resolve session; begin transaction;\nlock group then expense;
+    :Recheck reviewer, current level,\nversion, and PENDING status;
+    if (Authorized current decision?) then (yes)
+      :Record decision;
+      if (Reject?) then (yes)
+        :Set REJECTED; no journal entries;
+      else (approve)
+        if (Every required level approved?) then (yes)
+          :Set APPROVED;
+          :Append one obligation per nonpayer\nparticipant with positive share, exactly once;
+        else (no)
+          :Advance level; remain PENDING; no postings;
+        endif
+      endif
+      :Commit decision, state and any postings together;
+    else (no)
+      :Roll back; return denial/stale-state result;
+    endif
+  }
+end fork
+:Authorized queries show outcome and journal-derived balances;
+stop
+@enduml
