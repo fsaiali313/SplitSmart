@@ -12,3 +12,50 @@ model EnvironmentCheck {
   message   String
   createdAt DateTime @default(now())
 }
+
+model Group {
+  id       String    @id @default(cuid())
+  name     String
+  members  Member[]
+  expenses Expense[]
+}
+
+model Member {
+  id       String         @id @default(cuid())
+  groupId  String
+  name     String
+  joinedAt DateTime       @default(now())
+  group    Group          @relation(fields: [groupId], references: [id])
+  paid     Expense[]
+  shares   ExpenseShare[]
+
+  @@unique([groupId, id])
+}
+
+model Expense {
+  id          String         @id @default(cuid())
+  groupId     String
+  payerId     String
+  description String
+  amountCents Int
+  createdAt   DateTime       @default(now())
+  group       Group          @relation(fields: [groupId], references: [id])
+  payer       Member         @relation(fields: [groupId, payerId], references: [groupId, id])
+  shares      ExpenseShare[]
+
+  @@unique([groupId, id])
+  @@index([groupId, createdAt])
+}
+
+model ExpenseShare {
+  groupId   String
+  expenseId String
+  memberId  String
+  position  Int
+  cents     Int
+  expense   Expense @relation(fields: [groupId, expenseId], references: [groupId, id])
+  member    Member  @relation(fields: [groupId, memberId], references: [groupId, id])
+
+  @@id([expenseId, memberId])
+  @@unique([expenseId, position])
+}

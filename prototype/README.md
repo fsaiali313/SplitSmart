@@ -1,36 +1,21 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SplitSmart Lab 9 prototype
 
-## Getting Started
+Create a group, add members, and record USD expenses. The payer and everyone sharing the expense must belong to the selected group. The payer can also share the expense. Group balances show the net amount each member owes or should receive.
 
-First, run the development server:
+## Run locally
 
-```bash
+From the repository root:
+
+```sh
+cd prototype
+# If dependencies are missing, run npm ci first.
+test -f .env || printf '%s\n' 'DATABASE_URL="file:./dev.db"' > .env
+npx prisma db push
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 or use the forwarded port 3000 in Codespaces. With the default configuration, records are stored in `prisma/dev.db` and persist across refreshes and server restarts.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Each expense is stored in integer cents. Select participants in the order they should receive leftover cents. For a $10 split three ways, the first selected person gets a $3.34 share and the other two get $3.33 each. Each member's balance is the total they paid minus the total of their shares.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Run `npm run lint` for lint checks and `npm run build` for a production build.
